@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
 
 	// initialize game
 	// ---------------
+    std::cout << "Hello\n";
 	Breakout.Init();
 
 	// deltaTime variables
