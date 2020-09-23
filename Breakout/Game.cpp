@@ -64,6 +64,7 @@ void Game::Init()
 	// load shaders
 	ResourceManager::LoadShader("Assets/Shaders/sprite.vs", "Assets/Shaders/sprite.frag", nullptr, "sprite");
 	ResourceManager::LoadShader("Assets/Shaders/particle.vs", "Assets/Shaders/particle.frag", nullptr, "particle");
+	ResourceManager::LoadShader("Assets/Shaders/postProcessing.vs", "Assets/Shaders/postProcessing.frag", nullptr, "postProcessing");
 	// configure shaders
 	glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(this->Width),
 		static_cast<float>(this->Height), 0.0f, -1.0f, 1.0f);
@@ -109,21 +110,24 @@ void Game::Init()
 
 void Game::Update(float dt)
 {
+	// update objects
 	Ball->Move(dt, this->Width);
+	// check for collisions
 	this->DoCollisions();
-	if(Ball->Position.y >= this->Height) // did ball reach bottom edge?
-	{
-		this->ResetLevel();
-		this->ResetPlayer();
-	}
+	// update particles
 	Particles->Update(dt, *Ball, 2, glm::vec2(Ball->Radius / 2.0f));
+	// reduce shake time
 	if (ShakeTime > 0.0f)
 	{
 		ShakeTime -= dt;
-		if(ShakeTime <= 0.0f)
-		{
+		if (ShakeTime <= 0.0f)
 			Effects->Shake = false;
-		}
+	}
+	// check loss condition
+	if (Ball->Position.y >= this->Height) // did ball reach bottom edge?
+	{
+		this->ResetLevel();
+		this->ResetPlayer();
 	}
 }
 
@@ -299,19 +303,23 @@ void Game::DoCollisions()
 
 void Game::Render()
 {
-	if(this->State == GAME_ACTIVE)
+	if (this->State == GAME_ACTIVE)
 	{
-		Effects->BeginRender();
+		// begin rendering to postprocessing framebuffer
+		//Effects->BeginRender();
 		// draw background
-		Renderer->DrawSprite(ResourceManager::GetTexture("background"),
-			glm::vec2(0.0f, 0.0f), glm::vec2(this->Width, this->Height), 0.0f
-		);
+		Renderer->DrawSprite(ResourceManager::GetTexture("background"), glm::vec2(0.0f, 0.0f), glm::vec2(this->Width, this->Height), 0.0f);
 		// draw level
 		this->Levels[this->Level].Draw(*Renderer);
+		// draw player
 		Player->Draw(*Renderer);
+		// draw particles	
 		Particles->Draw();
+		// draw ball
 		Ball->Draw(*Renderer);
-		Effects->EndRender();
-		Effects->Render(glfwGetTime());
+		// end rendering to postprocessing framebuffer
+		//Effects->EndRender();
+		// render postprocessing quad
+		//Effects->Render(glfwGetTime());
 	}
 }
