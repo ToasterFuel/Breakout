@@ -1,5 +1,3 @@
-
-
 /*******************************************************************
 ** This code is part of Breakout.
 **
@@ -10,6 +8,7 @@
 ******************************************************************/
 #include "game.h"
 #include "GameLevel.h"
+#include "BallObject.h"
 #include "ResourceManager.h"
 #include "SpriteRenderer.h"
 
@@ -33,8 +32,14 @@ Game::~Game()
 const glm::vec2 PLAYER_SIZE(100.0f, 20.0f);
 // Initial velocity of the player paddle
 const float PLAYER_VELOCITY(500.0f);
-
 GameObject      *Player;
+
+// Initial velocity of the Ball
+const glm::vec2 INITIAL_BALL_VELOCITY(100.0f, -350.0f);
+// Radius of the ball object
+const float BALL_RADIUS = 12.5f;
+
+BallObject     *Ball;
 
 void Game::Init()
 {
@@ -69,11 +74,16 @@ void Game::Init()
 		this->Height - PLAYER_SIZE.y
 	);
 	Player = new GameObject(playerPos, PLAYER_SIZE, ResourceManager::GetTexture("paddle"));
+	glm::vec2 ballPos = playerPos + glm::vec2(PLAYER_SIZE.x / 2.0f - BALL_RADIUS,
+		-BALL_RADIUS * 2.0f);
+	Ball = new BallObject(ballPos, BALL_RADIUS, INITIAL_BALL_VELOCITY,
+		ResourceManager::GetTexture("face"));
 }
 
 void Game::Update(float dt)
 {
-
+	Ball->Move(dt, this->Width);
+	this->DoCollisions();
 }
 
 void Game::ProcessInput(float dt)
@@ -81,16 +91,75 @@ void Game::ProcessInput(float dt)
 	if(this->State == GAME_ACTIVE)
 	{
 		float velocity = PLAYER_VELOCITY * dt;
-		// move playerboard
+		//move playerboard
 		if(this->Keys[GLFW_KEY_A])
 		{
-			if(Player->Position.x >= 0.0f)
+			if (Player->Position.x >= 0.0f)
+			{
 				Player->Position.x -= velocity;
+				if (Ball->Stuck)
+					Ball->Position.x -= velocity;
+			}
 		}
 		if(this->Keys[GLFW_KEY_D])
 		{
-			if(Player->Position.x <= this->Width - Player->Size.x)
+			if (Player->Position.x <= this->Width - Player->Size.x)
+			{
 				Player->Position.x += velocity;
+				if (Ball->Stuck)
+					Ball->Position.x += velocity;
+			}
+		}
+		if(this->Keys[GLFW_KEY_SPACE])
+			Ball->Stuck = false;
+	}
+}
+
+bool CheckCollision(BallObject &one, GameObject &two) // AABB - Circle collision
+{
+	// get center point circle first 
+	glm::vec2 center(one.Position + one.Radius);
+	// calculate AABB info (center, half-extents)
+	glm::vec2 aabb_half_extents(two.Size.x / 2.0f, two.Size.y / 2.0f);
+	glm::vec2 aabb_center(
+		two.Position.x + aabb_half_extents.x,
+		two.Position.y + aabb_half_extents.y
+	);
+	// get difference vector between both centers
+	glm::vec2 difference = center - aabb_center;
+	glm::vec2 clamped = glm::clamp(difference, -aabb_half_extents, aabb_half_extents);
+	// add clamped value to AABB_center and we get the value of box closest to circle
+	glm::vec2 closest = aabb_center + clamped;
+	// retrieve vector between center circle and closest point AABB and check if length <= radius
+	difference = closest - center;
+	return glm::length(difference) < one.Radius;
+}
+
+/*
+bool CheckCollision(GameObject &one, GameObject &two) // AABB - AABB collision
+{
+	// collision x-axis?
+	bool collisionX = one.Position.x + one.Size.x >= two.Position.x &&
+		two.Position.x + two.Size.x >= one.Position.x;
+	// collision y-axis?
+	bool collisionY = one.Position.y + one.Size.y >= two.Position.y &&
+		two.Position.y + two.Size.y >= one.Position.y;
+	// collision only if on both axes
+	return collisionX && collisionY;
+}
+*/
+
+void Game::DoCollisions()
+{
+	for (GameObject &box : this->Levels[this->Level].Bricks)
+	{
+		if(!box.Destroyed)
+		{
+			if(CheckCollision(*Ball, box))
+			{
+				if(!box.IsSolid)
+					box.Destroyed = true;
+			}
 		}
 	}
 }
@@ -106,5 +175,6 @@ void Game::Render()
 		// draw level
 		this->Levels[this->Level].Draw(*Renderer);
 		Player->Draw(*Renderer);
+		Ball->Draw(*Renderer);
 	}
 }
